@@ -45,7 +45,7 @@ class KeycloakUserCreatorImpl(val realmRepository: KeycloakRealmRepository) : Ke
         var response:Response = usersResource.create(user)
         var httpsStatus:HttpStatus = HttpStatus.valueOf(response.status)
         if(httpsStatus.is2xxSuccessful){
-            var userId:String = response.location.path.replace(".*/([^/]+)$", "$1")
+            var userId:String = response.location.path.replace(".*/([^/]+)$".toRegex(), "$1")
             LOGGER.info("[KEYCLOAK-USER-CREATOR-IMPL] usuario criado: {}", userId)
             user.id = userId
 
