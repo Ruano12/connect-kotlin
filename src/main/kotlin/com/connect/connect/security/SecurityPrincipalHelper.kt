@@ -6,6 +6,7 @@ import org.keycloak.KeycloakSecurityContext
 import org.keycloak.adapters.OidcKeycloakAccount
 import org.keycloak.adapters.springsecurity.token.KeycloakAuthenticationToken
 import org.keycloak.representations.AccessToken
+import org.keycloak.representations.IDToken
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.security.core.context.SecurityContext
@@ -56,32 +57,35 @@ class SecurityPrincipalHelper(val cachedUserInfoProvider:UserInfoOperations) {
         return username
     }
 
-    fun getPersonId():Optional<UUID> {
-        var optional:Optional<UUID>  =
-            this.getOtherParameter(KeyCloakCustomFields.PERSON_ID)
-                .map { o: JvmType.Object -> o.toString() }
-                .map(UUID::fromString)
 
-        LOGGER.debug("[SECURITY-HELPER] getOrganizationId: {}", optional)
+    fun getPersonId(): Optional<UUID>? {
+        var test:SecurityContext = SecurityContextHolder.getContext()
+        var authentication:Authentication = test.authentication
+        var kp:KeycloakPrincipal<KeycloakSecurityContext> = authentication.principal as KeycloakPrincipal<KeycloakSecurityContext>
+        var token: IDToken? = kp.keycloakSecurityContext.token
 
-        return optional
+        val otherClaims = token!!.otherClaims
+
+        var personId:String = otherClaims.get(KeyCloakCustomFields.PERSON_ID.getId()).toString()
+
+        return Optional.of(UUID.fromString(personId))
     }
 
-    fun getOtherParameter(custom:KeyCloakCustomFields):Optional<JvmType.Object>{
-        var optional:Optional<JvmType.Object> =
-                Optional.ofNullable(SecurityContextHolder.getContext())
-                    .map(SecurityContext::getAuthentication)
-                    .filter(Authentication::isAuthenticated)
-                    .map(KeycloakAuthenticationToken::class.java::cast)
-                    .map(KeycloakAuthenticationToken::getAccount)
-                    .map(OidcKeycloakAccount::getKeycloakSecurityContext)
-                    .map(KeycloakSecurityContext::getTokenString)
-                    .map(cachedUserInfoProvider::get)
-                    .map{m -> m!!.get(custom.getId()) as JvmType.Object}
+    fun getOtherParameter(custom: KeyCloakCustomFields): Optional<Any> {
 
+        val optional = Optional.ofNullable(SecurityContextHolder.getContext())
+            .map { obj: SecurityContext -> obj.authentication }
+            .filter { obj: Authentication -> obj.isAuthenticated }
+            .map { o: Any? -> KeycloakAuthenticationToken::class.java.cast(o) }
+            .map { obj: KeycloakAuthenticationToken -> obj.account }
+            .map { obj: OidcKeycloakAccount -> obj.keycloakSecurityContext }
+            .map { obj: KeycloakSecurityContext -> obj.tokenString }
+            .map { accessToken: String -> cachedUserInfoProvider.get(accessToken) }
+            .map { m -> m!![custom.getId()] }
         LOGGER.debug(
-            "[SECURITY-HELPER] getOtherParameter, key: {}: value: {}", custom.getId(), optional);
-        return optional;
+            "[SECURITY-HELPER] getOtherParameter, key: {}: value: {}", custom.getId(), optional
+        )
+        return optional
     }
 
 
